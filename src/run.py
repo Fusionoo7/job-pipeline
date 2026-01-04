@@ -355,7 +355,7 @@ def main():
                 raise RuntimeError("tectonic did not generate Poojan_Vanani_Resume.pdf")
 
             # Drive destination directory: JobApps/<Company>/<Role>/<pageid>
-            dest_dir = f"{drive_root}/{clean_path_segment(company)}/{clean_path_segment(role)}/{job_id}"
+            dest_dir = f"{drive_root}/{clean_path_segment(company)}/{clean_path_segment(role)}"
 
             # Upload to Drive + get links
             sh(["rclone", "mkdir", f"{remote}:{dest_dir}"])
