@@ -1,6 +1,7 @@
 import os
 import json
 import pathlib
+import uuid
 from datetime import datetime, timezone
 
 from .notion_client import fetch_queued, update_page
@@ -211,6 +212,10 @@ def safe_text(prop) -> str:
 
 def main():
     limit = int(os.getenv("LIMIT") or "5")
+    run_id = uuid.uuid4().hex[:10]
+model_name = "none"
+prompt_version = "v1"
+
     items = fetch_queued(limit=limit)
 
     run_log = {
@@ -272,8 +277,6 @@ def main():
         except Exception as e:
             update_page(page_id, {
                 "Status": {"select": {"name": "Error"}},
-                "LastRunStatus": {"rich_text": [{"text": {"content": "EXCEPTION"}}]},
-                "LastRunError": {"rich_text": [{"text": {"content": str(e)[:2000]}}]},
             })
             run_log["errors"] += 1
             run_log["details"].append({"page": page_id, "status": "error", "reason": str(e)})
