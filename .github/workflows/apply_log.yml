@@ -25,13 +25,17 @@ jobs:
 
       - name: Install deps
         run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone tectonic
           pip install -r requirements.txt
 
       - name: Run pipeline
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
-          LIMIT: ${{ github.event.inputs.limit }}
+          RCLONE_REMOTE: ${{ secrets.RCLONE_REMOTE }}
+          DRIVE_ROOT: ${{ secrets.DRIVE_ROOT }}
+          LIMIT: 1
         run: |
           python -m src.run
 
@@ -41,3 +45,12 @@ jobs:
         with:
           name: run-artifacts
           path: artifacts/
+
+      - name: Configure rclone
+        env:
+          RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONFIG" > ~/.config/rclone/rclone.conf
+          rclone listremotes
+
