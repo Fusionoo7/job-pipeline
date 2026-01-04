@@ -3,6 +3,7 @@ import json
 import pathlib
 import subprocess
 import uuid
+import re
 from datetime import datetime, timezone
 
 from .latex_validate import looks_like_latex_resume
@@ -17,7 +18,6 @@ from .notion_client import (
 ART_DIR = pathlib.Path("artifacts")
 ART_DIR.mkdir(exist_ok=True)
 
-# IMPORTANT: Replace this with your full master LaTeX template
 MASTER_LATEX = r"""
 \documentclass[10.5pt]{article}
 \usepackage[margin=0.4in, bottom=0.4in, top=0.5in]{geometry}
@@ -28,8 +28,6 @@ MASTER_LATEX = r"""
 \usepackage{comment}
 
 \pagenumbering{gobble}
-
-% Define custom section font
 
 \titleformat{\section}{\large\bfseries}{}{0em}{}
 \titleformat{\subsection}{\bfseries}{}{0em}{}
@@ -62,7 +60,6 @@ MASTER_LATEX = r"""
 \hrule
 Mechanical Design \& Robotics Engineer with 3.5+ years of experience delivering precision electromechanical systems for automation, biofabrication, and research. Skilled in CAD, GD\&T, high-volume manufacturing, and cross-functional product launches with proven cost, quality, and time-to-market improvements.
 
-
 \vspace{-10pt}
 \section*{EDUCATION}
 \vspace{-5pt}
@@ -84,19 +81,12 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item \textbf{Mechanical Design:} SolidWorks (CSWA), Onshape, CATIA (familiar), AutoCAD, 3D modeling, GD\&T, FEA, DFM/DFA, Tolerance Stack-up, Injection Molding, Die Casting, Material Selection
-
 \item \textbf{Prototyping \& Manufacturing:} FDM 3D Printing, Rapid Prototyping, CNC, Machining, Additive Manufacturing, Assembly Documentation
-
 \item \textbf{Electronics Integration:} PCB Design (Eagle), Arduino, ESP32, STM32F4, Circuit Design, Sensors, I2C, SPI
-
 \item \textbf{Programming:} C, C++, Python, MATLAB
-
 \item \textbf{Testing \& Debugging:} Oscilloscope, Multimeter, FAT, System Integration
-
 \item \textbf{Software:} SolidWorks Simulation, RSLogix, Visual Studio Code, Git, Google Suite, Microsoft Office
-
 \item \textbf{Certifications:} Certified SolidWorks Associate, Bosch Rexroth (PLC, Sensors, Hydraulics)
-
 \end{itemize}
 
 \vspace{-10pt}
@@ -106,9 +96,7 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \hrule
 
 \textbf{Research Assistant, Arizona State University, Tempe, AZ} \hfill 11/2023 - 5/2025
-
 \vspace{-4pt}
-
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item Engineered 20+ precision parts in SolidWorks with in-house 3D printing, refining tolerances and materials to cut fit issues by 80\%.
 \item Performed FEA to verify stiffness and strength, ensuring zero failures in high-load motion capture pods.
@@ -116,11 +104,8 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Produced 3D-print-ready models and managed in-house fabrication, reducing print-to-assembly time by 30\%.
 \end{itemize}
 
-
 \textbf{Junior Engineer R\&D, Next Big Innovation Labs Pvt. Ltd., Bengaluru, Karnataka, India} \hfill 7/2022 - 8/2023 
-
 \vspace{-4pt}
-
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item Created coaxial/triaxial needle kits using GD\&T, delivering a 76\% cost reduction while maintaining precision and durability.
 \item Fabricated a custom pellet-based extruder in India, lowering manufacturing cost by 66.8\% and enabling multi-material bioprinting.
@@ -130,7 +115,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 
 \textbf{Intern, Nutron System Pvt. Ltd., Kalol, Gujarat, India} \hfill 4/2021 - 10/2021
 \vspace{-4pt}
-
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item Automated PTFE Bellow assembly line with CAD and PLC, boosting efficiency by 40\% and reducing defects by 82\%.
 \item Designed a glue dispenser and mesh cutter for Godrej \& Viega, improving automation and reducing manual work.
@@ -144,7 +128,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 
 \textbf{All-Terrain Vehicle (Team)} \hfill May 2019 -- Feb 2020
 \vspace{-4pt}
-
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item Designed suspension and steering systems in SolidWorks/Lotus to optimize durability and handling, securing 6th place nationally out of 80+ teams.
 \item Developed custom sheet-metal and composite bodywork, improving aesthetics, ergonomics, and performance under competitive conditions.
@@ -152,36 +135,31 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 
 \textbf{Underwater ROV (Team)} \hfill Dec 2021 -- May 2022
 \vspace{-4pt}
-
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item Built a deep-sea ROV integrating BLDC motors, waterproof enclosures, RF communication, and microcontrollers, enabling real-time video and sample collection at depth.
 \item Validated structural integrity and thermal stability under simulated deep-water conditions, ensuring reliable long-duration operation.
 \end{itemize}
 
 \textbf{Nurse Robot (Team)} \hfill Mar 2020 -- Jun 2020
-
 \vspace{-4pt}
 \begin{itemize}[left=5pt,itemsep=-4pt]
-    \item Designed assistive robot hardware for contactless patient care; selected and integrated sensors and PCBA layouts within compact housing.
-    \item Contributed to rapid prototyping and testing for functional validation during COVID-19 response.
+\item Designed assistive robot hardware for contactless patient care; selected and integrated sensors and PCBA layouts within compact housing.
+\item Contributed to rapid prototyping and testing for functional validation during COVID-19 response.
 \end{itemize}
 
 \textbf{SACH Cotton Harvester (Solo)} \hfill Jul 2021 -- May 2022
 \vspace{-4pt}
-
 \begin{itemize}[left=5pt,itemsep=-4pt]
 \item Developed a semi-automatic cotton harvester with robotic manipulator and IoT-based collection, improving small-scale farm productivity by 40\% in field trials.
 \item Designed mechanical linkages and modular attachments for easy adaptation to varied farm layouts and crop conditions.
 \end{itemize}
 
 \textbf{FDM 3D Printer (Solo)} \hfill Nov 2021 -- Dec 2022
-
 \vspace{-4pt}
 \begin{itemize}[left=5pt,itemsep=-4pt]
-\item Designed and assembled a 400×400×400 mm FDM printer with optimized frame rigidity, linear motion system, and custom PCB integration, achieving consistent print quality.
+\item Designed and assembled a 400x400x400 mm FDM printer with optimized frame rigidity, linear motion system, and custom PCB integration, achieving consistent print quality.
 \item Tuned firmware parameters and thermal management systems to ensure repeatable precision across multi-hour print cycles.
 \end{itemize}
-
 
 \end{document}
 """.strip()
@@ -193,22 +171,16 @@ def sh(cmd: list[str], cwd: str | None = None) -> str:
 
 
 def safe_text(prop) -> str:
-    """
-    Read Notion text from title/rich_text.
-    """
     try:
         if not prop:
             return ""
         t = prop.get("type")
-
         if t == "title":
             parts = prop.get("title") or []
             return "".join([p.get("plain_text", "") for p in parts])
-
         if t == "rich_text":
             parts = prop.get("rich_text") or []
             return "".join([p.get("plain_text", "") for p in parts])
-
         parts = prop.get("rich_text") or prop.get("title") or []
         return "".join([p.get("plain_text", "") for p in parts])
     except Exception:
@@ -229,16 +201,10 @@ def clean_path_segment(s: str) -> str:
 
 
 def find_prop(props: dict, candidates: list[str]):
-    """
-    Return the first matching property object in props.
-    Handles trailing spaces and case by checking common variants.
-    """
-    # direct checks
     for c in candidates:
         if c in props:
             return props[c]
 
-    # tolerant checks: normalize keys
     def norm(x: str) -> str:
         return " ".join((x or "").strip().lower().split())
 
@@ -248,29 +214,84 @@ def find_prop(props: dict, candidates: list[str]):
         if nk in props_norm:
             return props[props_norm[nk]]
 
-    # trailing-space variants
     for c in candidates:
         for k in props.keys():
             if k.strip() == c.strip():
                 return props[k]
-
     return None
+
+
+def normalize_unicode(s: str) -> str:
+    if not s:
+        return s
+    # Replace common ATS/LLM unicode that breaks LaTeX or fonts
+    s = s.replace("\u2013", "-").replace("\u2014", "-")  # en/em dash
+    s = s.replace("\u2018", "'").replace("\u2019", "'")  # smart apostrophes
+    s = s.replace("\u201c", '"').replace("\u201d", '"')  # smart quotes
+    s = s.replace("\u2022", "-")  # bullet
+    s = s.replace("\u00d7", "x")  # multiplication
+    s = s.replace("\u00a0", " ")  # non-breaking space
+    return s
+
+
+def escape_unescaped_chars(latex: str) -> str:
+    """
+    Escape common LaTeX special chars if not already escaped.
+    Conservative: only escapes when not preceded by backslash.
+    """
+    def esc(ch: str):
+        return re.sub(rf"(?<!\\)\{re.escape(ch)}", rf"\\{ch}", latex)
+
+    # Order matters: backslash itself not touched; we escape others.
+    out = latex
+    for ch in ["&", "%", "$", "#", "_"]:
+        out = re.sub(rf"(?<!\\)\{re.escape(ch)}", rf"\\{ch}", out)
+    return out
+
+
+def sanitize_latex(latex: str) -> str:
+    latex = normalize_unicode(latex)
+    latex = escape_unescaped_chars(latex)
+    return latex
+
+
+def compile_pdf(tex_path: pathlib.Path) -> pathlib.Path:
+    """
+    Runs tectonic and returns path to PDF. Raises RuntimeError with stderr snippet on failure.
+    """
+    out_dir = tex_path.parent
+    try:
+        r = subprocess.run(
+            ["tectonic", tex_path.name, "--outdir", "."],
+            cwd=str(out_dir),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        combined = (e.stdout or "") + "\n" + (e.stderr or "")
+        combined = combined.strip()
+        raise RuntimeError("tectonic_failed:\n" + combined[:1800]) from e
+
+    pdf_path = out_dir / tex_path.with_suffix(".pdf").name
+    if not pdf_path.exists():
+        raise RuntimeError("tectonic_failed: PDF not produced")
+    return pdf_path
 
 
 def main():
     limit = int(os.getenv("LIMIT") or "5")
 
     run_id = uuid.uuid4().hex[:10]
-    model_name = os.getenv("MODEL_NAME", "none")
+    model_name = os.getenv("MODEL_NAME", os.getenv("GEMINI_MODEL", "gemini"))
     prompt_version = os.getenv("PROMPT_VERSION", "v1")
 
-    remote = os.environ["RCLONE_REMOTE"]          # e.g. gdrive
+    remote = os.environ["RCLONE_REMOTE"]  # e.g. gdrive
     drive_root = os.environ.get("DRIVE_ROOT", "JobApps")
 
     schema = get_database_schema()
     idx = build_property_index(schema)
 
-    # Trigger state
     items = fetch_by_status("Not Applied", limit=limit, idx=idx)
 
     run_log = {
@@ -279,12 +300,11 @@ def main():
         "processed": 0,
         "ok": 0,
         "errors": 0,
-        "details": []
+        "details": [],
     }
 
     for page in items:
         page_id = page["id"]
-        job_id = page_id.replace("-", "")
         props = page.get("properties", {}) or {}
 
         company = safe_text(find_prop(props, ["Company"]) or {})
@@ -299,22 +319,22 @@ def main():
         jd = safe_text(find_prop(props, ["Job Description", "JD", "Description"]) or {})
 
         if not jd.strip():
-            info = update_page_safe(page_id, {
-                "Status": "Error",
-                "Errors": "Job Description is empty or unreadable by API",
-                "Run ID": run_id,
-                "Model": model_name,
-                "Prompt version": prompt_version,
-            }, idx)
-
+            info = update_page_safe(
+                page_id,
+                {
+                    "Status": "Error",
+                    "Errors": "Job Description is empty or unreadable by API",
+                    "Run ID": run_id,
+                    "Model": model_name,
+                    "Prompt version": prompt_version,
+                },
+                idx,
+            )
             run_log["errors"] += 1
             run_log["processed"] += 1
-            run_log["details"].append({
-                "page": page_id,
-                "status": "error",
-                "reason": "empty_jd",
-                "notion": info
-            })
+            run_log["details"].append(
+                {"page": page_id, "status": "error", "reason": "empty_jd", "notion": info}
+            )
             continue
 
         try:
@@ -326,61 +346,53 @@ def main():
                 url=url,
             )
 
-            tailored = pack["tailored_latex"]
-            fit_score = pack["fit_score"]
-            kw_cov = pack["keyword_coverage"]
+            tailored = sanitize_latex(pack["tailored_latex"])
+            fit_score = pack.get("fit_score", 0)
+            kw_cov = pack.get("keyword_coverage", 0)
 
-            outreach = pack["outreach"]
-            outreach_block = "\n\n".join([
-                f"LinkedIn connect note:\n{outreach['linkedin_connect_note']}",
-                f"LinkedIn message:\n{outreach['linkedin_message']}",
-                f"Recruiter email:\n{outreach['recruiter_email']}",
-                f"Follow-up (7d):\n{outreach['followup_7d']}",
-                f"Follow-up (14d):\n{outreach['followup_14d']}",
-            ])
-
-
-            missing = ", ".join(pack.get("missing_keywords", [])[:20])
+            outreach = pack.get("outreach", {})
+            outreach_block = "\n\n".join(
+                [
+                    f"LinkedIn connect note:\n{outreach.get('linkedin_connect_note','')}",
+                    f"LinkedIn message:\n{outreach.get('linkedin_message','')}",
+                    f"Recruiter email:\n{outreach.get('recruiter_email','')}",
+                    f"Follow-up (7d):\n{outreach.get('followup_7d','')}",
+                    f"Follow-up (14d):\n{outreach.get('followup_14d','')}",
+                ]
+            )
 
             ok, reason = looks_like_latex_resume(tailored)
-
             if not ok:
-                info = update_page_safe(page_id, {
-                    "Status": "Error",
-                    "Errors": f"LaTeX invalid: {reason}",
-                    "Run ID": run_id,
-                    "Model": model_name,
-                    "Prompt version": prompt_version,
-                }, idx)
-
+                info = update_page_safe(
+                    page_id,
+                    {
+                        "Status": "Error",
+                        "Errors": f"LaTeX invalid: {reason}",
+                        "Run ID": run_id,
+                        "Model": model_name,
+                        "Prompt version": prompt_version,
+                    },
+                    idx,
+                )
                 run_log["errors"] += 1
                 run_log["processed"] += 1
-                run_log["details"].append({
-                    "page": page_id,
-                    "status": "error",
-                    "reason": reason,
-                    "notion": info
-                })
+                run_log["details"].append(
+                    {"page": page_id, "status": "error", "reason": reason, "notion": info}
+                )
                 continue
 
-            # Local artifact folder per job (prevents overwrites, constant filename)
+            # Local artifact folder per company/role (constant filenames inside)
             out_dir = ART_DIR / f"{clean_path_segment(company)}_{clean_path_segment(role)}"
             out_dir.mkdir(parents=True, exist_ok=True)
 
             tex_path = out_dir / "Poojan_Vanani_Resume.tex"
             tex_path.write_text(tailored, encoding="utf-8")
 
-            # Compile PDF (ATS-friendly)
-            sh(["tectonic", tex_path.name, "--outdir", "."], cwd=str(out_dir))
+            pdf_path = compile_pdf(tex_path)
 
-            pdf_path = out_dir / "Poojan_Vanani_Resume.pdf"
-            if not pdf_path.exists():
-                raise RuntimeError("tectonic did not generate Poojan_Vanani_Resume.pdf")
-
-            # Drive destination directory: JobApps/<Company>/<Role>/<pageid>
+            # Drive destination: JobApps/<Company>/<Role>
             dest_dir = f"{drive_root}/{clean_path_segment(company)}/{clean_path_segment(role)}"
 
-            # Upload to Drive + get links
             sh(["rclone", "mkdir", f"{remote}:{dest_dir}"])
             sh(["rclone", "copyto", str(pdf_path), f"{remote}:{dest_dir}/{pdf_path.name}"])
             sh(["rclone", "copyto", str(tex_path), f"{remote}:{dest_dir}/{tex_path.name}"])
@@ -388,52 +400,57 @@ def main():
             pdf_link = sh(["rclone", "link", f"{remote}:{dest_dir}/{pdf_path.name}"])
             tex_link = sh(["rclone", "link", f"{remote}:{dest_dir}/{tex_path.name}"])
 
-            # Update Notion with links (use your URL columns)
-            info = update_page_safe(page_id, {
-                "Status": "Applied",
-                "Errors": "",
-                "Fit score": fit_score,
-                "Keywork Coverage": kw_cov,
-                "Follow up message": {"rich_text": [{"text": {"content": outreach_block[:2000]}}]},
-                "Run ID": run_id,
-                "Model": model_name,
-                "Prompt version": prompt_version,
-                "Resume PDF": pdf_link,
-                "Resume Latex": tex_link,
-            }, idx)
+            info = update_page_safe(
+                page_id,
+                {
+                    "Status": "Applied",
+                    "Errors": "",
+                    "Fit score": float(fit_score),
+                    "Keywork Coverage": float(kw_cov),
+                    "Follow up message": {"rich_text": [{"text": {"content": outreach_block[:2000]}}]},
+                    "Run ID": run_id,
+                    "Model": model_name,
+                    "Prompt version": prompt_version,
+                    "Resume PDF": pdf_link,
+                    "Resume Latex": tex_link,
+                },
+                idx,
+            )
 
             run_log["ok"] += 1
             run_log["processed"] += 1
-            run_log["details"].append({
-                "page": page_id,
-                "status": "ok",
-                "company": company,
-                "role": role,
-                "url": url,
-                "tex": str(tex_path),
-                "pdf": str(pdf_path),
-                "drive_pdf": pdf_link,
-                "drive_tex": tex_link,
-                "notion": info
-            })
+            run_log["details"].append(
+                {
+                    "page": page_id,
+                    "status": "ok",
+                    "company": company,
+                    "role": role,
+                    "url": url,
+                    "tex": str(tex_path),
+                    "pdf": str(pdf_path),
+                    "drive_pdf": pdf_link,
+                    "drive_tex": tex_link,
+                    "notion": info,
+                }
+            )
 
         except Exception as e:
-            info = update_page_safe(page_id, {
-                "Status": "Error",
-                "Errors": str(e)[:2000],
-                "Run ID": run_id,
-                "Model": model_name,
-                "Prompt version": prompt_version,
-            }, idx)
-
+            info = update_page_safe(
+                page_id,
+                {
+                    "Status": "Error",
+                    "Errors": str(e)[:2000],
+                    "Run ID": run_id,
+                    "Model": model_name,
+                    "Prompt version": prompt_version,
+                },
+                idx,
+            )
             run_log["errors"] += 1
             run_log["processed"] += 1
-            run_log["details"].append({
-                "page": page_id,
-                "status": "error",
-                "reason": str(e),
-                "notion": info
-            })
+            run_log["details"].append(
+                {"page": page_id, "status": "error", "reason": str(e), "notion": info}
+            )
 
     (ART_DIR / "run_log.json").write_text(json.dumps(run_log, indent=2), encoding="utf-8")
 
