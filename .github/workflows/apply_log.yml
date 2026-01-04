@@ -24,7 +24,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y rclone curl tar
+          sudo apt-get install -y rclone curl jq tar
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
@@ -32,39 +32,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y curl jq tar
-
-          # Find the correct Linux x86_64 tarball URL from the latest release
           URL=$(curl -s https://api.github.com/repos/tectonic-typesetting/tectonic/releases/latest \
             | jq -r '.assets[] | select(.name | test("tectonic-.*x86_64.*linux.*\\.tar\\.gz$|tectonic-x86_64-unknown-linux-gnu\\.tar\\.gz$")) | .browser_download_url' \
             | head -n 1)
-
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Could not find tectonic Linux tarball in latest release assets."
-            exit 1
-          fi
-
-          echo "Downloading: $URL"
+          test -n "$URL"
           mkdir -p /tmp/tectonic && cd /tmp/tectonic
           curl -L "$URL" -o tectonic.tar.gz
-
-          # sanity check: must be gzip
-          file tectonic.tar.gz
           tar -xzf tectonic.tar.gz
-
-          # Find tectonic binary inside extracted folder
           BIN=$(find . -type f -name tectonic -maxdepth 3 | head -n 1)
-          if [ -z "$BIN" ]; then
-            echo "tectonic binary not found after extraction"
-            ls -la
-            exit 1
-          fi
-
+          test -n "$BIN"
           sudo mv "$BIN" /usr/local/bin/tectonic
           sudo chmod +x /usr/local/bin/tectonic
           tectonic --version
-
 
 
       - name: Configure rclone
@@ -74,18 +53,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.config/rclone
-
-          # Write the config content to the real config file
           printf "%s" "$RCLONE_CONFIG_CONTENT" > ~/.config/rclone/rclone.conf
-
-          # Sanity checks (no secrets printed)
-          test -s ~/.config/rclone/rclone.conf
-          echo "Config bytes: $(wc -c < ~/.config/rclone/rclone.conf)"
-          echo "Config head:"
-          head -n 5 ~/.config/rclone/rclone.conf
-
-          # Force rclone to use this config file explicitly
           rclone --config ~/.config/rclone/rclone.conf listremotes
+          rclone --config ~/.config/rclone/rclone.conf about ${{ secrets.RCLONE_REMOTE }}:
 
 
       - name: Run pipeline
