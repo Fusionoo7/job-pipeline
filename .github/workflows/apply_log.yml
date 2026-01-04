@@ -68,11 +68,16 @@ jobs:
 
 
       - name: Configure rclone
+        shell: bash
         env:
           RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.config/rclone
-          echo "$RCLONE_CONFIG" > ~/.config/rclone/rclone.conf
+          cat > ~/.config/rclone/rclone.conf <<'EOF'
+          ${RCLONE_CONFIG}
+          EOF
+          rclone config show
           rclone listremotes
 
       - name: Run pipeline
