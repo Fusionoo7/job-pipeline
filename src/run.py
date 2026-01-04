@@ -185,9 +185,28 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 """.strip()
 
 def safe_text(prop) -> str:
+    """
+    Reads text from Notion properties safely across types:
+    - title
+    - rich_text
+    - (handles empty/None)
+    """
     try:
-        rt = prop.get("rich_text") or prop.get("title") or []
-        return "".join([x["plain_text"] for x in rt])
+        if not prop:
+            return ""
+        # title
+        if prop.get("type") == "title":
+            parts = prop.get("title") or []
+            return "".join([p.get("plain_text", "") for p in parts])
+
+        # rich_text
+        if prop.get("type") == "rich_text":
+            parts = prop.get("rich_text") or []
+            return "".join([p.get("plain_text", "") for p in parts])
+
+        # fallback: some Notion responses include keys directly
+        parts = prop.get("rich_text") or prop.get("title") or []
+        return "".join([p.get("plain_text", "") for p in parts])
     except Exception:
         return ""
 
@@ -229,7 +248,8 @@ def main():
         # Prefer Job URL, fall back to Job Link, then URL
         url = get_url(props.get("Job URL", {})) or get_url(props.get("Job Link", {})) or get_url(props.get("URL", {}))
 
-        jd = safe_text(props.get("Job Description", {}))
+        jd_prop = props.get("Job Description", {})
+        jd = safe_text(jd_prop)
 
         # If JD is empty, mark error and continue
         if not jd.strip():
