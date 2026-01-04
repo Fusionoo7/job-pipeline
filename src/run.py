@@ -212,9 +212,11 @@ def safe_text(prop) -> str:
 
 def main():
     limit = int(os.getenv("LIMIT") or "5")
+
+    import uuid
     run_id = uuid.uuid4().hex[:10]
-model_name = "none"
-prompt_version = "v1"
+    model_name = "none"
+    prompt_version = "v1"
 
     items = fetch_queued(limit=limit)
 
