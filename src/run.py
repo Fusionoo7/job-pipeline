@@ -4,9 +4,14 @@ import pathlib
 import uuid
 from datetime import datetime, timezone
 
-from .notion_client import fetch_queued, update_page
 from .latex_validate import looks_like_latex_resume
 from .llm_optional import tailor_resume
+from .notion_client import (
+    get_database_schema,
+    build_property_index,
+    fetch_by_status,
+    update_page_safe,
+)
 
 ART_DIR = pathlib.Path("artifacts")
 ART_DIR.mkdir(exist_ok=True)
@@ -121,10 +126,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Partnered with electronics vendors to deliver tailored integration solutions, ensuring compatibility and long-term reliability.
 \end{itemize}
 
-
-
-  
-
 \textbf{Intern, Nutron System Pvt. Ltd., Kalol, Gujarat, India} \hfill 4/2021 - 10/2021
 \vspace{-4pt}
 
@@ -133,9 +134,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Designed a glue dispenser and mesh cutter for Godrej \& Viega, improving automation and reducing manual work.
 \item Collaborated with manufacturing teams to install automation systems, increasing uptime and reliability.
 \end{itemize}
-
-
-  
 
 \vspace{-10pt}    
 \section*{PROJECTS}
@@ -150,9 +148,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Developed custom sheet-metal and composite bodywork, improving aesthetics, ergonomics, and performance under competitive conditions.
 \end{itemize}
 
-
-
-
 \textbf{Underwater ROV (Team)} \hfill Dec 2021 -- May 2022
 \vspace{-4pt}
 
@@ -160,9 +155,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Built a deep-sea ROV integrating BLDC motors, waterproof enclosures, RF communication, and microcontrollers, enabling real-time video and sample collection at depth.
 \item Validated structural integrity and thermal stability under simulated deep-water conditions, ensuring reliable long-duration operation.
 \end{itemize}
-
-
-
 
 \textbf{Nurse Robot (Team)} \hfill Mar 2020 -- Jun 2020
 
@@ -172,9 +164,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
     \item Contributed to rapid prototyping and testing for functional validation during COVID-19 response.
 \end{itemize}
 
-
-
-
 \textbf{SACH Cotton Harvester (Solo)} \hfill Jul 2021 -- May 2022
 \vspace{-4pt}
 
@@ -183,8 +172,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Designed mechanical linkages and modular attachments for easy adaptation to varied farm layouts and crop conditions.
 \end{itemize}
 
-
-
 \textbf{FDM 3D Printer (Solo)} \hfill Nov 2021 -- Dec 2022
 
 \vspace{-4pt}
@@ -192,12 +179,6 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 \item Designed and assembled a 400×400×400 mm FDM printer with optimized frame rigidity, linear motion system, and custom PCB integration, achieving consistent print quality.
 \item Tuned firmware parameters and thermal management systems to ensure repeatable precision across multi-hour print cycles.
 \end{itemize}
-
-
-
-
-
-
 
 
 \end{document}
@@ -210,18 +191,28 @@ def safe_text(prop) -> str:
     except Exception:
         return ""
 
+def get_url(prop) -> str:
+    try:
+        return prop.get("url") or ""
+    except Exception:
+        return ""
+
 def main():
     limit = int(os.getenv("LIMIT") or "5")
 
-    import uuid
     run_id = uuid.uuid4().hex[:10]
-    model_name = "none"
-    prompt_version = "v1"
+    model_name = os.getenv("MODEL_NAME", "none")
+    prompt_version = os.getenv("PROMPT_VERSION", "v1")
 
-    items = fetch_queued(limit=limit)
+    schema = get_database_schema()
+    idx = build_property_index(schema)
+
+    # Trigger state is "Not Applied"
+    items = fetch_by_status("Not Applied", limit=limit, idx=idx)
 
     run_log = {
         "ts": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
         "processed": 0,
         "ok": 0,
         "errors": 0,
@@ -234,49 +225,87 @@ def main():
 
         company = safe_text(props.get("Company", {}))
         role = safe_text(props.get("Role", {}))
-        url = (props.get("Job URL", {}) or {}).get("url") or ""
+
+        # Prefer Job URL, fall back to Job Link, then URL
+        url = get_url(props.get("Job URL", {})) or get_url(props.get("Job Link", {})) or get_url(props.get("URL", {}))
+
         jd = safe_text(props.get("Job Description", {}))
+
+        # If JD is empty, mark error and continue
+        if not jd.strip():
+            info = update_page_safe(page_id, {
+                "Status": "Error",
+                "Errors": "Job Description is empty",
+                "Run ID": run_id,
+                "Model": model_name,
+                "Prompt version": prompt_version,
+            }, idx)
+            run_log["errors"] += 1
+            run_log["processed"] += 1
+            run_log["details"].append({"page": page_id, "status": "error", "reason": "empty_jd", "notion": info})
+            continue
 
         try:
             tailored = tailor_resume(MASTER_LATEX, jd)
             ok, reason = looks_like_latex_resume(tailored)
 
             if not ok:
-                update_page(page_id, {
-                    "Status": {"status": {"name": "Error"}},
-                    "Errors": {"rich_text": [{"text": {"content": str(e)[:2000]}}]},
-                    "Run ID": {"rich_text": [{"text": {"content": run_id}}]},
-                })
-
+                info = update_page_safe(page_id, {
+                    "Status": "Error",
+                    "Errors": f"LaTeX invalid: {reason}",
+                    "Run ID": run_id,
+                    "Model": model_name,
+                    "Prompt version": prompt_version,
+                }, idx)
                 run_log["errors"] += 1
-                run_log["details"].append({"page": page_id, "status": "error", "reason": reason})
                 run_log["processed"] += 1
+                run_log["details"].append({"page": page_id, "status": "error", "reason": reason, "notion": info})
                 continue
 
-            update_page(page_id, {
-                "Status": {"status": {"name": "Applied"}},
-                "Latex": {"rich_text": [{"text": {"content": tailored[:2000]}}]},
-                "Run ID": {"rich_text": [{"text": {"content": run_id}}]},
-                "Model": {"rich_text": [{"text": {"content": model_name}}]},
-                "Prompt version": {"rich_text": [{"text": {"content": prompt_version}}]},
-                "Errors": {"rich_text": [{"text": {"content": ""}}]},
-            })
+            # Write tex file with constant filename inside a per-application folder
+            safe_folder = f"{company}_{role}".replace("/", "-").replace("\\", "-").strip()
+            safe_folder = "_".join(safe_folder.split())[:80] or page_id
+            out_dir = ART_DIR / safe_folder
+            out_dir.mkdir(parents=True, exist_ok=True)
 
+            tex_path = out_dir / "Poojan_Vanani_Resume.tex"
+            tex_path.write_text(tailored, encoding="utf-8")
 
-            fname = f"{company}_{role}".replace(" ", "_")[:80] or page_id
-            (ART_DIR / f"{fname}.tex").write_text(tailored, encoding="utf-8")
+            # Update Notion (write into Latex or Resume Latex if it exists; update_page_safe handles it)
+            info = update_page_safe(page_id, {
+                "Status": "Applied",
+                "Errors": "",
+                "Run ID": run_id,
+                "Model": model_name,
+                "Prompt version": prompt_version,
+                # Support both names; whichever exists will be updated
+                "Latex": tailored[:2000],
+                "Resume Latex": tailored[:2000],
+            }, idx)
 
             run_log["ok"] += 1
-            run_log["details"].append({"page": page_id, "status": "ok", "company": company, "role": role, "url": url})
+            run_log["processed"] += 1
+            run_log["details"].append({
+                "page": page_id,
+                "status": "ok",
+                "company": company,
+                "role": role,
+                "url": url,
+                "tex": str(tex_path),
+                "notion": info
+            })
 
         except Exception as e:
-            update_page(page_id, {
-                "Status": {"select": {"name": "Error"}},
-            })
+            info = update_page_safe(page_id, {
+                "Status": "Error",
+                "Errors": str(e)[:2000],
+                "Run ID": run_id,
+                "Model": model_name,
+                "Prompt version": prompt_version,
+            }, idx)
             run_log["errors"] += 1
-            run_log["details"].append({"page": page_id, "status": "error", "reason": str(e)})
-
-        run_log["processed"] += 1
+            run_log["processed"] += 1
+            run_log["details"].append({"page": page_id, "status": "error", "reason": str(e), "notion": info})
 
     (ART_DIR / "run_log.json").write_text(json.dumps(run_log, indent=2), encoding="utf-8")
 
