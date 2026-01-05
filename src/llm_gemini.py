@@ -27,6 +27,7 @@ class ApplyPack(BaseModel):
 # 1) PUT YOUR PROMPT IN THIS BLOCK (keep it instruction-only)
 PROMPT_INSTRUCTIONS = r"""
 
+
 Context:
 I am providing two documents:
 - My current resume (in .latex format).
@@ -67,6 +68,29 @@ Final Output:
 
 Deliverable:
 Output the final revised resume ready to be copied back into LaTeX code.
+
+NON-NEGOTIABLE RULES (MUST FOLLOW):
+1) Output MUST be valid LaTeX that compiles with tectonic.
+2) DO NOT change the LaTeX preamble (everything before \begin{document}).
+3) DO NOT remove or rename any section headers (SUMMARY, EDUCATION, TECHNICAL SKILLS, PROFESSIONAL EXPERIENCE, PROJECTS).
+4) DO NOT delete any job/role/project entry. Keep all entries.
+5) DO NOT change dates, company names, titles, locations, degrees, GPAs, or contact info.
+6) DO NOT add new companies, roles, degrees, or projects that are not in the master resume.
+7) You MAY rewrite bullet text for relevance, but preserve the number of bullets per entry (same count as master).
+8) You MAY reorder bullets within the same entry. Do not move bullets across entries.
+9) Keep the overall structure identical: only modify bullet text content and (optionally) summary lines.
+10) Avoid special characters unless escaped for LaTeX: &, %, $, #, _ must be escaped.
+
+EDITING SCOPE:
+- Allowed edits:
+  - Rewrite bullet text to better match the job description.
+  - Adjust wording in SUMMARY to align with the job.
+- Forbidden edits:
+  - Any structural changes, removing environments, changing \section* names, adding custom commands/macros.
+
+OUTPUT REQUIREMENT:
+Return ONLY the full LaTeX document as a single string (no markdown fences).
+
 """.strip()
 
 

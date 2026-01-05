@@ -258,6 +258,43 @@ def sanitize_latex(latex: str) -> str:
     latex = escape_tex_specials(latex)
     return latex
 
+def count_itemize_items(latex: str) -> int:
+    # counts \item occurrences (rough but effective for mutation control)
+    return len(re.findall(r"(?m)^\s*\\item\b", latex))
+
+def require_same_section_markers(master: str, tailored: str) -> None:
+    required = [
+        r"\section*{SUMMARY}",
+        r"\section*{EDUCATION}",
+        r"\section*{TECHNICAL SKILLS}",
+        r"\section*{PROFESSIONAL EXPERIENCE}",
+        r"\section*{PROJECTS}",
+    ]
+    for m in required:
+        if m not in tailored:
+            raise RuntimeError(f"mutation_violation: missing section marker {m}")
+
+    # ensure all required markers exist in master too (sanity)
+    for m in required:
+        if m not in master:
+            raise RuntimeError(f"pipeline_error: master missing section marker {m}")
+
+def require_no_new_companies(master: str, tailored: str) -> None:
+    # simplest guard: tailored cannot contain bold employer lines not in master
+    # compare all \textbf{...} lines (coarse but strong)
+    master_bold = set(re.findall(r"\\textbf\{([^}]+)\}", master))
+    tailored_bold = set(re.findall(r"\\textbf\{([^}]+)\}", tailored))
+    # allow tailored subset, but forbid new bold entries (new roles/projects)
+    new_bold = sorted([b for b in tailored_bold if b not in master_bold])
+    if new_bold:
+        raise RuntimeError("mutation_violation: introduced new \\textbf entries: " + ", ".join(new_bold[:10]))
+
+def require_bullet_count_stable(master: str, tailored: str, tolerance: int = 0) -> None:
+    m = count_itemize_items(master)
+    t = count_itemize_items(tailored)
+    if t != m + tolerance:
+        raise RuntimeError(f"mutation_violation: bullet_count master={m} tailored={t}")
+
 
 def compile_pdf(tex_path: pathlib.Path) -> pathlib.Path:
     out_dir = tex_path.parent
@@ -363,6 +400,11 @@ def main():
             )
 
             ok, reason = looks_like_latex_resume(tailored)
+            # Mutation guards: fail fast if AI changed structure
+            require_same_section_markers(MASTER_LATEX, tailored)
+            require_no_new_companies(MASTER_LATEX, tailored)
+            require_bullet_count_stable(MASTER_LATEX, tailored, tolerance=0)
+
             if not ok:
                 info = update_page_safe(
                     page_id,
