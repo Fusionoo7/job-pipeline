@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 import uuid
 import re
+from tenacity import RetryError
 from datetime import datetime, timezone
 
 from .latex_validate import looks_like_latex_resume
@@ -164,6 +165,15 @@ Ganpat University, Mehsana, Gujarat, India \hfill GPA: 8.07/10
 def sh(cmd: list[str], cwd: str | None = None) -> str:
     r = subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=cwd)
     return (r.stdout or "").strip()
+
+def explain_exception(e: Exception) -> str:
+    # Tenacity wraps the real exception inside RetryError
+    if isinstance(e, RetryError):
+        last = e.last_attempt.exception()
+        if last:
+            return f"{type(last).__name__}: {last}"
+        return "RetryError: last_attempt had no exception"
+    return f"{type(e).__name__}: {e}"
 
 
 def safe_text(prop) -> str:
@@ -477,22 +487,26 @@ def main():
             )
 
         except Exception as e:
-            info = update_page_safe(
-                page_id,
-                {
-                    "Status": "Error",
-                    "Errors": str(e)[:2000],
-                    "Run ID": run_id,
-                    "Model": model_name,
-                    "Prompt version": prompt_version,
-                },
-                idx,
-            )
+            err = explain_exception(e)[:2000]
+            print("PIPELINE_ERROR:", err)  # shows in GitHub Actions logs too
+
+            info = update_page_safe(page_id, {
+                "Status": "Error",
+                "Errors": err,
+                "Run ID": run_id,
+                "Model": model_name,
+                "Prompt version": prompt_version,
+            }, idx)
+
             run_log["errors"] += 1
             run_log["processed"] += 1
-            run_log["details"].append(
-                {"page": page_id, "status": "error", "reason": str(e), "notion": info}
-            )
+            run_log["details"].append({
+                "page": page_id,
+                "status": "error",
+                "reason": err,
+                "notion": info
+            })
+
 
     (ART_DIR / "run_log.json").write_text(json.dumps(run_log, indent=2), encoding="utf-8")
 
