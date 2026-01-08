@@ -596,7 +596,7 @@ def main():
             info = update_page_safe(
                 page_id,
                 {
-                    "Status": "Applied",
+                    "Status": "Ready",
                     "Errors": "",
                     "Fit score": float(fit_score),
                     "Keyword Coverage": float(kw_cov),
