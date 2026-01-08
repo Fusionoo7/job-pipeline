@@ -10,6 +10,12 @@ from .notion_client import (
 )
 
 
+def chunk_rich_text(s: str, chunk: int = 1900, max_len: int = 6000):
+    s = s or ""
+    s = s[:max_len]  # optional cap to avoid absurdly long JDs
+    return [{"text": {"content": s[i:i+chunk]}} for i in range(0, len(s), chunk)]
+
+
 def parse_issue_form(body: str) -> dict:
     """
     GitHub Issue Forms render as markdown:
@@ -69,7 +75,7 @@ def main():
         "Company": data["company"],
         "Role": data["role"],
         "Job URL": data["job_url"],
-        "Job Description": data["job_description"],
+        "Job Description": chunk_rich_text(data["job_description"]),
         "Status": "Not Applied",
         "Source": "GitHub Form",
     }
@@ -77,7 +83,7 @@ def main():
     if data.get("location"):
         desired["Location"] = data["location"]
     if data.get("notes"):
-        desired["Notes"] = data["notes"]
+        desired["Notes"] = chunk_rich_text(data["notes"])
 
     created = create_page_safe(desired, idx)
     page_id = created.get("id", "")
