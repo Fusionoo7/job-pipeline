@@ -313,6 +313,23 @@ def sanitize_latex(tex: str) -> str:
 
     return tex
 
+
+def merge_with_master_preamble(master: str, tex: str) -> str:
+    start = master.find(r"\begin{document}")
+    if start == -1:
+        raise RuntimeError("Master LaTeX missing \\begin{document}.")
+    preamble = master[: start + len(r"\begin{document}")]
+
+    b_start = tex.find(r"\begin{document}")
+    b_end = tex.rfind(r"\end{document}")
+    if b_start != -1 and b_end != -1 and b_end > b_start:
+        body = tex[b_start + len(r"\begin{document}") : b_end]
+    else:
+        body = tex
+
+    body = body.strip()
+    return preamble + "\n" + body + "\n" + r"\end{document}"
+
 def count_itemize_items(latex: str) -> int:
     # counts \item occurrences (rough but effective for mutation control)
     # count \item anywhere (LLMs sometimes inline \item after \begin{itemize})
@@ -467,6 +484,7 @@ def main():
                     f"LLM output missing LaTeX field. Keys={list(pack.keys())}"
                 )
             tailored_latex = sanitize_latex(tailored_raw)
+            tailored_latex = merge_with_master_preamble(MASTER_LATEX, tailored_latex)
 
             ok, reason = looks_like_latex_resume(tailored_latex)
             # Mutation guards: fail fast if AI changed structure
