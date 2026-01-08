@@ -115,18 +115,18 @@ def set_prop_value(prop_schema: dict, value: Any) -> dict:
 
     if ptype == "title":
         # allow passing a pre-built Notion title payload or list
-        if isinstance(value, dict) and "title" in value:
-            return value
         if isinstance(value, list):
             return {"title": value}
+        if isinstance(value, dict) and "title" in value:
+            return value
         return {"title": [{"text": {"content": str(value)}}]}
 
     if ptype == "rich_text":
         # allow passing a pre-built Notion rich_text payload or list
-        if isinstance(value, dict) and "rich_text" in value:
-            return value
         if isinstance(value, list):
             return {"rich_text": value}
+        if isinstance(value, dict) and "rich_text" in value:
+            return value
         return {"rich_text": [{"text": {"content": str(value)}}]}
 
     if ptype == "url":
@@ -190,3 +190,45 @@ def fetch_by_status(status_name: str, limit: int, idx: Dict[str, Tuple[str, dict
         f"https://api.notion.com/v1/databases/{_get_notion_db_id()}/query", payload
     )
     return data.get("results", [])
+
+
+def _get_db_id() -> str:
+    return _get_notion_db_id()
+
+
+def find_title_property(schema: dict) -> str:
+    props = (schema.get("properties") or {})
+    for name, ps in props.items():
+        if (ps or {}).get("type") == "title":
+            return name
+    raise NotionError("No title property found in database schema")
+
+
+def create_page_safe(desired: Dict[str, Any], idx: Dict[str, Tuple[str, dict]]) -> dict:
+    # Build properties payload from desired, skipping missing props
+    props_payload: Dict[str, Any] = {}
+
+    for desired_name, desired_value in desired.items():
+        resolved = resolve_prop(idx, desired_name)
+        if not resolved:
+            continue
+        actual_name, prop_schema = resolved
+        props_payload[actual_name] = set_prop_value(prop_schema, desired_value)
+
+    # Notion requires the title property to be set
+    schema = get_database_schema()
+    title_prop = find_title_property(schema)
+    if title_prop not in props_payload:
+        # If user provided Company, use it as title fallback
+        company_res = resolve_prop(idx, "Company")
+        company_val = desired.get("Company") or desired.get("company") or "Job"
+        if company_res and company_res[0] == title_prop:
+            props_payload[title_prop] = set_prop_value({"type": "title"}, company_val)
+        else:
+            props_payload[title_prop] = {"title": [{"text": {"content": str(company_val)}}]}
+
+    payload = {
+        "parent": {"database_id": _get_db_id()},
+        "properties": props_payload,
+    }
+    return _post("https://api.notion.com/v1/pages", payload)

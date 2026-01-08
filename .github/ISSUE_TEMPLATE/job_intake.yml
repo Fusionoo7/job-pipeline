@@ -1,0 +1,52 @@
+name: Add job to pipeline
+description: Submit a job for resume tailoring + Notion logging
+title: "Job: "
+labels: ["job-intake"]
+body:
+  - type: input
+    id: company
+    attributes:
+      label: Company
+      placeholder: Syenta
+    validations:
+      required: true
+
+  - type: input
+    id: role
+    attributes:
+      label: Role
+      placeholder: Mechatronics / Manufacturing Tools Engineer
+    validations:
+      required: true
+
+  - type: input
+    id: job_url
+    attributes:
+      label: Job URL
+      placeholder: https://...
+    validations:
+      required: true
+
+  - type: textarea
+    id: job_description
+    attributes:
+      label: Job Description
+      description: Paste the full JD here
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Location (optional)
+      placeholder: Tempe, AZ
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      placeholder: Any extra context
+    validations:
+      required: false

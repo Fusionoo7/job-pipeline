@@ -1,4 +1,4 @@
-name: Job Apply Logger
+name: Apply Log
 
 on:
   workflow_dispatch:
@@ -7,9 +7,13 @@ on:
         description: "Max number of Not Applied rows to process"
         required: true
         default: "1"
+  workflow_run:
+    workflows: ["Intake job to Notion"]
+    types: [completed]
 
 jobs:
   run:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -92,7 +96,7 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
           DRIVE_ROOT: ${{ secrets.DRIVE_ROOT }}         # JobApps
-          LIMIT: ${{ github.event.inputs.limit }}
+          LIMIT: ${{ github.event.inputs.limit || '1' }}
           MODEL_NAME: "none"
           PROMPT_VERSION: "v1"
         run: |
