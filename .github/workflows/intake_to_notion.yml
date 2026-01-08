@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: read
 
 jobs:
   intake:
@@ -28,14 +29,23 @@ jobs:
           pip install -r requirements.txt
 
       - name: Create Notion row from issue
+        id: create_row
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
         run: |
-          python -m src.intake_issue
+          OUT="$(python -m src.intake_issue)"
+          echo "$OUT"
+          PAGE_ID="$(echo "$OUT" | sed -n 's/^CREATED_NOTION_PAGE_ID=//p')"
+          if [ -z "$PAGE_ID" ]; then
+            echo "No PAGE_ID returned"
+            exit 1
+          fi
+          echo "page_id=$PAGE_ID" >> "$GITHUB_OUTPUT"
       - name: Trigger Apply Log
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
+          PAGE_ID: ${{ steps.create_row.outputs.page_id }}
         run: |
-          gh workflow run "Apply Log" -f limit=1
+          gh workflow run "Apply Log" -f limit=1 -f page_id="$PAGE_ID"

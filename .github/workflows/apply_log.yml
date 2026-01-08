@@ -7,6 +7,10 @@ on:
         description: "Max number of Not Applied rows to process"
         required: true
         default: "1"
+      page_id:
+        description: "Process only this Notion page id (optional)"
+        required: false
+        default: ""
 
 concurrency:
   group: apply-log
@@ -98,6 +102,7 @@ jobs:
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
           DRIVE_ROOT: ${{ secrets.DRIVE_ROOT }}         # JobApps
           LIMIT: ${{ github.event.inputs.limit || '1' }}
+          PAGE_ID: ${{ github.event.inputs.page_id }}
           MODEL_NAME: "none"
           PROMPT_VERSION: "v1"
         run: |

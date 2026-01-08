@@ -232,3 +232,7 @@ def create_page_safe(desired: Dict[str, Any], idx: Dict[str, Tuple[str, dict]]) 
         "properties": props_payload,
     }
     return _post("https://api.notion.com/v1/pages", payload)
+
+
+def get_page(page_id: str) -> dict:
+    return _get(f"https://api.notion.com/v1/pages/{page_id}")

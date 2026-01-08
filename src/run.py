@@ -12,6 +12,7 @@ from .llm_gemini import generate_apply_pack
 from .notion_client import (
     get_database_schema,
     build_property_index,
+    get_page,
     fetch_by_status,
     update_page_safe,
 )
@@ -346,7 +347,14 @@ def main():
     schema = get_database_schema()
     idx = build_property_index(schema)
 
-    items = fetch_by_status("Not Applied", limit=limit, idx=idx)
+    page_id_env = (os.getenv("PAGE_ID") or "").strip()
+
+    if page_id_env:
+        # fetch single page
+        item = get_page(page_id_env)
+        items = [item]
+    else:
+        items = fetch_by_status("Not Applied", limit=limit, idx=idx)
 
     run_log = {
         "ts": datetime.now(timezone.utc).isoformat(),
