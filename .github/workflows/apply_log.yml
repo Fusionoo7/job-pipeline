@@ -62,7 +62,9 @@ jobs:
           printf "%s" "$RCLONE_CONFIG_CONTENT" > ~/.config/rclone/rclone.conf
 
           rclone --config ~/.config/rclone/rclone.conf listremotes
-          rclone --config ~/.config/rclone/rclone.conf about "${RCLONE_REMOTE}:"
+          RCLONE_REMOTE_CLEAN="$(printf "%s" "${RCLONE_REMOTE}" | tr -d '\r\n' | sed 's/:$//')"
+          echo "Using remote=$RCLONE_REMOTE_CLEAN"
+          rclone --config ~/.config/rclone/rclone.conf about "${RCLONE_REMOTE_CLEAN}:"
 
 
 
