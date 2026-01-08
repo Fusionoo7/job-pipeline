@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 import uuid
 import re
+import traceback
 from tenacity import RetryError
 from datetime import datetime, timezone
 
@@ -432,6 +433,7 @@ def main():
                 role=role,
                 url=url,
             )
+            print("LLM_KEYS", sorted(list(pack.keys())))
             required = ["tailored_latex", "fit_score", "keyword_coverage", "outreach"]
             missing = [k for k in required if k not in pack]
             if missing:
@@ -439,9 +441,16 @@ def main():
                     f"LLM JSON missing fields: {missing}. Keys={list(pack.keys())}"
                 )
 
-            tailored_raw = pack.get("tailored_latex") or ""
+            tailored_raw = (
+                pack.get("tailored_latex")
+                or pack.get("document")   # backward compat if you ever switch schemas
+                or pack.get("latex")
+                or ""
+            )
             if not tailored_raw:
-                raise RuntimeError("LLM output missing 'tailored_latex' field.")
+                raise RuntimeError(
+                    f"LLM output missing LaTeX field. Keys={list(pack.keys())}"
+                )
             tailored_latex = sanitize_latex(tailored_raw)
             fit_score = pack.get("fit_score", 0)
             kw_cov = pack.get("keyword_coverage", 0)
@@ -534,26 +543,37 @@ def main():
             )
 
         except Exception as e:
-            err = explain_exception(e)[:2000]
-            print("PIPELINE_ERROR:", err)  # shows in GitHub Actions logs too
+            trace = traceback.format_exc()
 
-            transient = any(x in err for x in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "500"])
-            info = update_page_safe(page_id, {
-                "Status": "Not Applied" if transient else "Error",
-                "Errors": err,
-                "Run ID": run_id,
-                "Model": model_name,
-                "Prompt version": prompt_version,
-            }, idx)
+            # print to Actions logs (full fidelity)
+            print(trace)
+
+            # Notion rich_text blocks must be <=2000 chars each; keep it short
+            short = trace[-1800:]  # tail is usually the most relevant
+
+            info = update_page_safe(
+                page_id,
+                {
+                    "Status": "Error",
+                    "Errors": short,
+                    "Run ID": run_id,
+                    "Model": model_name,
+                    "Prompt version": prompt_version,
+                },
+                idx,
+            )
 
             run_log["errors"] += 1
             run_log["processed"] += 1
-            run_log["details"].append({
-                "page": page_id,
-                "status": "error",
-                "reason": err,
-                "notion": info
-            })
+            run_log["details"].append(
+                {
+                    "page": page_id,
+                    "status": "error",
+                    "reason": f"{type(e).__name__}: {e}",
+                    "trace": trace,
+                    "notion": info,
+                }
+            )
 
 
     (ART_DIR / "run_log.json").write_text(json.dumps(run_log, indent=2), encoding="utf-8")
