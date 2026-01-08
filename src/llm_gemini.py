@@ -166,15 +166,30 @@ def _generate_with_retry(client, **kwargs):
     return client.models.generate_content(**kwargs)
 
 
-def generate_apply_pack(master_latex: str, jd: str, company: str, role: str, url: str) -> Dict[str, Any]:
+def generate_apply_pack(
+    master_latex: str,
+    jd: str,
+    company: str,
+    role: str,
+    url: str,
+    force_same_bullets: bool = False,
+) -> Dict[str, Any]:
     if not jd or not jd.strip():
         raise ValueError("empty_jd")
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
+    instructions = PROMPT_INSTRUCTIONS
+    if force_same_bullets:
+        instructions = (
+            PROMPT_INSTRUCTIONS
+            + "\n\nCORRECTIVE: The number of \\item bullets must match the master exactly. "
+            "Do not add or remove bullets."
+        )
+
     prompt = Template(PROMPT_TEMPLATE).safe_substitute(
-        instructions=PROMPT_INSTRUCTIONS,
+        instructions=instructions,
         company=company or "",
         role=role or "",
         job_url=url or "",

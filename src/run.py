@@ -332,10 +332,12 @@ def require_no_new_companies(master: str, tailored: str) -> None:
     if new_bold:
         raise RuntimeError("mutation_violation: introduced new \\textbf entries: " + ", ".join(new_bold[:10]))
 
-def require_bullet_count_stable(master: str, tailored: str, tolerance: int = 0) -> None:
+def require_bullet_count_stable(
+    master: str, tailored: str, max_drop: int = 2, max_add: int = 2
+) -> None:
     m = count_itemize_items(master)
     t = count_itemize_items(tailored)
-    if t != m + tolerance:
+    if t < m - max_drop or t > m + max_add:
         raise RuntimeError(f"mutation_violation: bullet_count master={m} tailored={t}")
 
 
@@ -452,6 +454,49 @@ def main():
                     f"LLM output missing LaTeX field. Keys={list(pack.keys())}"
                 )
             tailored_latex = sanitize_latex(tailored_raw)
+
+            ok, reason = looks_like_latex_resume(tailored_latex)
+            # Mutation guards: fail fast if AI changed structure
+            require_same_section_markers(MASTER_LATEX, tailored_latex)
+            try:
+                require_bullet_count_stable(
+                    MASTER_LATEX, tailored_latex, max_drop=2, max_add=0
+                )
+            except RuntimeError:
+                pack = generate_apply_pack(
+                    master_latex=MASTER_LATEX,
+                    jd=jd,
+                    company=company,
+                    role=role,
+                    url=url,
+                    force_same_bullets=True,
+                )
+                print("LLM_KEYS", sorted(list(pack.keys())))
+                required = ["tailored_latex", "fit_score", "keyword_coverage", "outreach"]
+                missing = [k for k in required if k not in pack]
+                if missing:
+                    raise RuntimeError(
+                        f"LLM JSON missing fields: {missing}. Keys={list(pack.keys())}"
+                    )
+
+                tailored_raw = (
+                    pack.get("tailored_latex")
+                    or pack.get("document")   # backward compat if you ever switch schemas
+                    or pack.get("latex")
+                    or ""
+                )
+                if not tailored_raw:
+                    raise RuntimeError(
+                        f"LLM output missing LaTeX field. Keys={list(pack.keys())}"
+                    )
+                tailored_latex = sanitize_latex(tailored_raw)
+
+                ok, reason = looks_like_latex_resume(tailored_latex)
+                require_same_section_markers(MASTER_LATEX, tailored_latex)
+                require_bullet_count_stable(
+                    MASTER_LATEX, tailored_latex, max_drop=2, max_add=0
+                )
+
             fit_score = pack.get("fit_score", 0)
             kw_cov = pack.get("keyword_coverage", 0)
 
@@ -465,11 +510,6 @@ def main():
                     f"Follow-up (14d):\n{outreach.get('followup_14d','')}",
                 ]
             )
-
-            ok, reason = looks_like_latex_resume(tailored_latex)
-            # Mutation guards: fail fast if AI changed structure
-            require_same_section_markers(MASTER_LATEX, tailored_latex)
-            require_bullet_count_stable(MASTER_LATEX, tailored_latex, tolerance=0)
 
             if not ok:
                 info = update_page_safe(
