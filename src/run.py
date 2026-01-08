@@ -495,8 +495,9 @@ def main():
             err = explain_exception(e)[:2000]
             print("PIPELINE_ERROR:", err)  # shows in GitHub Actions logs too
 
+            transient = any(x in err for x in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "500"])
             info = update_page_safe(page_id, {
-                "Status": "Error",
+                "Status": "Not Applied" if transient else "Error",
                 "Errors": err,
                 "Run ID": run_id,
                 "Model": model_name,

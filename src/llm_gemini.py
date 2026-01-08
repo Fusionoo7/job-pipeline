@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from google import genai
 from pydantic import BaseModel, Field
+from tenacity import retry, wait_random_exponential, stop_after_attempt, retry_if_exception
 
 
 class Outreach(BaseModel):
@@ -133,6 +134,25 @@ REQUIRED JSON FIELDS:
 """.strip()
 
 
+def _is_transient_gemini_error(e: Exception) -> bool:
+    s = f"{type(e).__name__}: {e}"
+    return any(x in s for x in [
+        "503", "UNAVAILABLE",          # model overloaded
+        "429", "RESOURCE_EXHAUSTED",   # rate limiting / quota
+        "500", "INTERNAL",             # occasional backend blips
+    ])
+
+
+@retry(
+    reraise=True,
+    wait=wait_random_exponential(min=2, max=60),
+    stop=stop_after_attempt(6),
+    retry=retry_if_exception(_is_transient_gemini_error),
+)
+def _generate_with_retry(client, **kwargs):
+    return client.models.generate_content(**kwargs)
+
+
 def generate_apply_pack(master_latex: str, jd: str, company: str, role: str, url: str) -> Dict[str, Any]:
     if not jd or not jd.strip():
         raise ValueError("empty_jd")
@@ -149,7 +169,8 @@ def generate_apply_pack(master_latex: str, jd: str, company: str, role: str, url
         master=master_latex.strip(),
     )
 
-    resp = client.models.generate_content(
+    resp = _generate_with_retry(
+        client,
         model=model,
         contents=prompt,
         config={
